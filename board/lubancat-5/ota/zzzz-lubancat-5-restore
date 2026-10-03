@@ -1,0 +1,66 @@
+#!/bin/sh
+set -eu
+
+src_dir=/usr/local/share/lubancat-5-boot
+log=/var/log/lubancat5-boot-restore.log
+kernel_version="${1:-unknown}"
+
+install -d -m 0755 /boot/dtb/rockchip
+touch "$log"
+chmod 0600 "$log"
+
+check_and_restore()
+{
+    src="$1"
+    dst="$2"
+    name="$3"
+
+    expected="$(sha256sum "$src" | awk '{print $1}')"
+
+    if [ -f "$dst" ]; then
+        before="$(sha256sum "$dst" | awk '{print $1}')"
+    else
+        before=missing
+    fi
+
+    if [ "$before" = "$expected" ]; then
+        action=preserved
+    else
+        install -m 0644 "$src" "$dst"
+        action=restored
+    fi
+
+    after="$(sha256sum "$dst" | awk '{print $1}')"
+
+    printf '%s kernel=%s file=%s before=%s expected=%s action=%s after=%s\n' \
+        "$(date -Is)" \
+        "$kernel_version" \
+        "$name" \
+        "$before" \
+        "$expected" \
+        "$action" \
+        "$after" \
+        >> "$log"
+}
+
+check_and_restore \
+    "$src_dir/rk3588-lubancat-5.dtb" \
+    /boot/dtb/rockchip/rk3588-lubancat-5.dtb \
+    rk3588-lubancat-5.dtb
+
+check_and_restore \
+    "$src_dir/armbianEnv.txt" \
+    /boot/armbianEnv.txt \
+    armbianEnv.txt
+
+check_and_restore \
+    "$src_dir/boot.cmd" \
+    /boot/boot.cmd \
+    boot.cmd
+
+check_and_restore \
+    "$src_dir/boot.scr" \
+    /boot/boot.scr \
+    boot.scr
+
+sync
